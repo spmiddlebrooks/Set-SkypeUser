@@ -20,7 +20,7 @@ param(
 			if ( Test-Path $_ ) {$True}
 			else {Throw "FilePath $_ not found"}
 		})]	
-		[string] $FilePath = ""
+		[string] $FilePath
 )
 
 
