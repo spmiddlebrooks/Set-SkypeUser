@@ -110,13 +110,13 @@ If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 				$GrantCsCommand = "Grant-Cs" + $Matches[1]
 
 				if ( $($CsvUser.$Column) -eq "" ) {
-					break
+					continue
 				}
 				elseif ( $($CsvUser.$Column) -eq "null" ) {
 					$Command = $GrantCsCommand + " -PolicyName `$null -Identity $($CsvUser.userPrincipalName)"
 				}
 				elseif ( $($CsvUser.$Column) -match "^[A-Za-z0-9\-_ ]+$" ) {
-					$Command = $GrantCsCommand + " -PolicyName $($CsvUser.$Column) -Identity $($CsvUser.userPrincipalName)"
+					$Command = $GrantCsCommand + " -PolicyName ""$($CsvUser.$Column)"" -Identity $($CsvUser.userPrincipalName)"
 				}
 				#Invoke-Expression -Command $Command
 				Write-Host $Command
