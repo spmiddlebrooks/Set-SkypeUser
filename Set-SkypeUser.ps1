@@ -67,6 +67,7 @@ function Start-Command {
 		Invoke-Expression $Command
 	}
 }
+# End function Start-Command
 
 ############################################################################
 $RowNumber = 1
