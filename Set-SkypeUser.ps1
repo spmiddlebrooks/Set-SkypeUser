@@ -13,7 +13,7 @@
 #Requires -Version 3.0
 #Requires -Modules Lync
 
-[cmdletbinding()]
+[CmdletBinding(SupportsShouldProcess=$true)]
 param( 
 	[Parameter(Mandatory=$True)]
 		[ValidateScript({
@@ -56,16 +56,20 @@ function Test-CsvFormat {
 }
 # End function Test-CsvFormat
 
-function Grant-SkypePolicy {
+function Start-Command {
+	[CmdletBinding(SupportsShouldProcess=$true)]
 	param (
-		[string] $ColumnsCsv
+		[string] $userPrincipalName,
+		[string] $Command
 	)
+
+	if ( $pscmdlet.ShouldProcess($userPrincipalName,$Command) ) {
+		Invoke-Expression $Command
+	}
 }
-# End function Grant-SkypePolicy
-	
+
 ############################################################################
 $RowNumber = 1
-	
 	
 If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 	
@@ -81,30 +85,30 @@ If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 		if ( $($CsvUser.CsEnabled -eq $True) ) {
 			# Move an existing user to a new pool
 			if ( $($CsvUser.TargetRegistrarPool) ) {
-				Write-Host "Move-CsUser -Identity $($CsvUser.userPrincipalName) -Target $($CsvUser.TargetRegistrarPool)"
+				Start-Command $CsvUser.userPrincipalName "Move-CsUser -Identity $($CsvUser.userPrincipalName) -Target $($CsvUser.TargetRegistrarPool)"
 			}
-			# If TargetEnterpriseVoice is set to $False, disable EV for a user and set LineUri to $null
+			# If TargetEnterpriseVoiceEnabled is set to $False, disable EV for a user and set LineUri to $null
 			elseif ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $False ) {
-				Write-Host "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled $False -LineUri $null"
+				Start-Command $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled $False -LineUri `$null"
 			}
 			# If EnterpriseVoice is already enabled for a user and TargetLineUri is set, update user's Line Uri
 			elseif ( $($CsvUser.EnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match '^tel:\+\d{7,15}(;ext=\d+)?' ) {
-				Write-Host "Set-CsUser -Identity $($CsvUser.userPrincipalName) -LineUri $($CsvUser.TargetLineUri)"
+				Start-Command $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -LineUri $($CsvUser.TargetLineUri)"
 			}
 		}
 		# Enable a user
 		elseif ( $($CsvUser.TargetCsEnabled -eq $True) ) {
-			if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match '^tel:\+\d{7,15}(;ext=\d+)?'){
-				Write-Host "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
-				#Start-Sleep -Seconds 5
-				Write-Host "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled $True -LineUri $($CsvUser.TargetLineUri)"
+			if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match '^tel:\+\d{7,15}(;ext=\d+)?' ) {
+				Start-Command $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
+				Start-Sleep -Seconds 5
+				Start-Command $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled $True -LineUri $($CsvUser.TargetLineUri)"
 			}
 			else {
-				Write-Host "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
-				#Start-Sleep -Seconds 5
+				Start-Command $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
+				Start-Sleep -Seconds 5
 			}
 		}
-		
+
 		foreach ($Column in $ColumnsCsv) {
 			if ($Column -match 'Target(DialPlan|\w+Policy)') {
 				$GrantCsCommand = "Grant-Cs" + $Matches[1]
@@ -115,11 +119,10 @@ If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 				elseif ( $($CsvUser.$Column) -eq "null" ) {
 					$Command = $GrantCsCommand + " -PolicyName `$null -Identity $($CsvUser.userPrincipalName)"
 				}
-				elseif ( $($CsvUser.$Column) -match "^[A-Za-z0-9\-_ ]+$" ) {
+				elseif ( $($CsvUser.$Column) -match '^[A-Za-z0-9\-_ ]+$' ) {
 					$Command = $GrantCsCommand + " -PolicyName ""$($CsvUser.$Column)"" -Identity $($CsvUser.userPrincipalName)"
 				}
-				#Invoke-Expression -Command $Command
-				Write-Host $Command
+				Start-Command $CsvUser.userPrincipalName $Command
 				$Matches.Clear()
 			}
 		}
