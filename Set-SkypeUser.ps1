@@ -5,7 +5,7 @@
 .EXAMPLE
 .NOTES
 	Version: 1.0
-	Updated: 9/15/2017 1737
+	Updated: 9/15/2017 1814
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
 	https://github.com/spmiddlebrooks
@@ -144,7 +144,10 @@ function Write-Color {
 ############################################################################
 $RowNumber = 1
 $E164RegEx = '^tel:\+\d{7,15}(;ext=\d+)?$'
+$SipUriRegex = '^sip:.+@.+$'
+$NonSipUriRegex = '^.+@.+$'
 $CsPolicyNameRegEx = '^[A-Za-z0-9\-_ ]+$'
+
 	
 If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 	
@@ -179,8 +182,8 @@ If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 			}
 
 
-			# If TargetRegistrarPool is set, move user to new pool
-			if ( $($CsvUser.TargetRegistrarPool) ) {
+			# If TargetRegistrarPool is set AND TargetRegistrarpool is not the same as the user's current RegistrarPool, move user to new pool
+			if ( $($CsvUser.TargetRegistrarPool) -and $($CsvUser.TargetRegistrarPool) -ne $($CsUserObject.RegistrarPool) ) {
 				Invoke-CommandLine $CsvUser.userPrincipalName "Move-CsUser -Identity $($CsvUser.userPrincipalName) -Target $($CsvUser.TargetRegistrarPool) -Confirm:`$False"
 			}
 
@@ -194,7 +197,12 @@ If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
         # If TargetCsEnabled is True and the user is not enabled in Lync/Skype...
 		elseif ( $($CsvUser.TargetCsEnabled) -eq $True -and -Not $CsUserObject ) {
             # Enable the user
-   			Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
+                if ( $($CsvUser.TargetSipAddress) -match $SipUriRegex ) {
+                    Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
+                }
+                elseif ( $($CsvUser.TargetSipAddress) -match $NonSipUriRegex ) {
+                    Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)"
+                }
             # Wait for the changes to replicate
 			Start-Sleep -Seconds 10
             # If TargetEnterpriseVoiceEnabled is True and TargetLineUri matches E164 formatting, EV enable the user and set LineUri
@@ -204,7 +212,7 @@ If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 		}
 
 		foreach ($Column in $ColumnsCsv) {
-			if ( $CsUserObject -and $Column -match 'Target(DialPlan|\w+Policy)' ) {
+			if ( ( $CsUserObject -or $($CsvUser.TargetCsEnabled) ) -and $Column -match 'Target(DialPlan|\w+Policy)' ) {
 				$Command = $null
 				$GrantCsCommand = "Grant-Cs" + $Matches[1]
 
