@@ -5,7 +5,7 @@
 .EXAMPLE
 .NOTES
 	Version: 1.0
-	Updated: 9/15/2017 1041
+	Updated: 9/15/2017 1737
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
 	https://github.com/spmiddlebrooks
@@ -143,6 +143,8 @@ function Write-Color {
 
 ############################################################################
 $RowNumber = 1
+$E164RegEx = '^tel:\+\d{7,15}(;ext=\d+)?$'
+$CsPolicyNameRegEx = '^[A-Za-z0-9\-_ ]+$'
 	
 If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 	
@@ -155,50 +157,66 @@ If ($AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath) {
 		$RowNumber += 1
 
 		# Check to see if user is already enabled in Lync/Skype
-		$UserCsEnabled = Get-CsUser -Identity $($CsvUser.userPrincipalName) -ErrorAction SilentlyContinue
-		
-		# Update or Move an existing user
-		if ( $UserCsEnabled -eq $True) {
-			# Move an existing user to a new pool
+		$CsUserObject = Get-CsUser -Identity $($CsvUser.userPrincipalName) -ErrorAction SilentlyContinue
+
+		#### Logic for when a user is already Lync/Skype enabled
+        # If a user is already enabled in Lync/Skype...
+		if ( $CsUserObject ) {
+			# If TargetLineUri is set and matches E164 formatting...
+			if ( $($CsvUser.TargetLineUri) -match $E164RegEx ) {
+                # If the user is already EV enabled, update user's Line Uri
+                if ( $CsUserObject.EnterpriseVoiceEnabled ) {
+				    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -LineUri $($CsvUser.TargetLineUri)"
+                }
+                # Else if TargetEnterpriseVoiceEnabled is TRUE, then enable EV and set user's Line Uri
+                elseif ( $CsvCuser.TargetEnterpriseVoiceEnabled ) {
+                    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri $($CsvUser.TargetLineUri)"
+                }
+			}
+			# Else if TargetEnterpriseVoiceEnabled is set to $False, disable EV for user and set LineUri to $null
+			elseif ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $False ) {
+				Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$False -LineUri `$null"
+			}
+
+
+			# If TargetRegistrarPool is set, move user to new pool
 			if ( $($CsvUser.TargetRegistrarPool) ) {
 				Invoke-CommandLine $CsvUser.userPrincipalName "Move-CsUser -Identity $($CsvUser.userPrincipalName) -Target $($CsvUser.TargetRegistrarPool) -Confirm:`$False"
 			}
-			# If TargetEnterpriseVoiceEnabled is set to $False, disable EV for user and set LineUri to $null
-			elseif ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $False ) {
-				Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled $False -LineUri `$null"
-			}
-			# If EnterpriseVoice is already enabled for a user and TargetLineUri is set, update user's Line Uri
-			elseif ( $($CsvUser.EnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match '^tel:\+\d{7,15}(;ext=\d+)?' ) {
-				Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -LineUri $($CsvUser.TargetLineUri)"
+
+            # If TargetCsEnabled is FALSE, disable the Lync/Skype user
+            if ( $($CsvUser.TargetCsEnabled) -eq $False ) {
+                Invoke-CommandLine $CsvUser.userPrincipalName "Revoke-CsClientCertificate -Identity $($CsvUser.userPrincipalName)"
+				Invoke-CommandLine $CsvUser.userPrincipalName "Disable-CsUser -Identity $($CsvUser.userPrincipalName)"
 			}
 		}
-		# Enable a user
-		elseif ( $($CsvUser.TargetCsEnabled -eq $True) ) {
-			if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match '^tel:\+\d{7,15}(;ext=\d+)?' ) {
-				Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
-				Start-Sleep -Seconds 5
-				Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled $True -LineUri $($CsvUser.TargetLineUri)"
-			}
-			else {
-				Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
-				Start-Sleep -Seconds 5
-			}
+		#### Logic for enabling a user
+        # If TargetCsEnabled is True and the user is not enabled in Lync/Skype...
+		elseif ( $($CsvUser.TargetCsEnabled) -eq $True -and -Not $CsUserObject ) {
+            # Enable the user
+   			Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
+            # Wait for the changes to replicate
+			Start-Sleep -Seconds 10
+            # If TargetEnterpriseVoiceEnabled is True and TargetLineUri matches E164 formatting, EV enable the user and set LineUri
+			if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match $E164RegEx ) {
+                    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri $($CsvUser.TargetLineUri)"
+            }
 		}
 
 		foreach ($Column in $ColumnsCsv) {
-			if ( $UserCsEnabled -and $Column -match 'Target(DialPlan|\w+Policy)' ) {
+			if ( $CsUserObject -and $Column -match 'Target(DialPlan|\w+Policy)' ) {
+				$Command = $null
 				$GrantCsCommand = "Grant-Cs" + $Matches[1]
 
 				if ( $($CsvUser.$Column) -eq "null" ) {
 					$Command =  $GrantCsCommand + " -PolicyName `$null -Identity $($CsvUser.userPrincipalName)"
 				}
-				elseif ( $($CsvUser.$Column) -match '^[A-Za-z0-9\-_ ]+$' ) {
+				elseif ( $($CsvUser.$Column) -match $CsPolicyNameRegEx ) {
 					$Command = $GrantCsCommand + " -PolicyName ""$($CsvUser.$Column)"" -Identity $($CsvUser.userPrincipalName)"
 				}
 
 				if ($Command) {
 					Invoke-CommandLine $CsvUser.userPrincipalName $Command
-					$Command = $null
 				}
 			}
 		}
