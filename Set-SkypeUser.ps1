@@ -4,8 +4,8 @@
 .PARAMETER
 .EXAMPLE
 .NOTES
-	Version: 1.1
-	Updated: 9/18/2017 1546
+	Version: 1.1.1
+	Updated: 9/21/2017
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
 	https://github.com/spmiddlebrooks
@@ -285,11 +285,11 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 	Foreach ($CsvUser in $AllCsvUsers) {
     [bool] $EnableCsUserSuccess=$false
 
-		if ($AllCsvUsers.Count -le 1) {
-            $AllCsvUsersCount = 1 
-        }
-		else {
+        if ($AllCsvUsers.Count) {
             $AllCsvUsersCount = $AllCsvUsers.Count
+        }
+        else { 
+            $AllCsvUsersCount = 1
         }
 	
 		Write-Progress -Activity "Processing Users" -Status "Processing $RowNumber of $AllCsvUsersCount" -PercentComplete (($RowNumber / $AllCsvUsersCount) * 100)
