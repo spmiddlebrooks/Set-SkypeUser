@@ -4,8 +4,8 @@
 .PARAMETER
 .EXAMPLE
 .NOTES
-	Version: 1.1.1
-	Updated: 9/21/2017
+	Version: 1.1.2
+	Updated: 10/6/2017
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
 	https://github.com/spmiddlebrooks
@@ -22,11 +22,11 @@ param(
 		})]	
 		[string] $FilePath,
 	[Parameter(Mandatory=$False)]
-		[ValidateScript({
-			if ( (Test-Path (split-path $_ -Parent)) ) {$True}
-			else {Throw "LogPath $_ not found"}
-		})]	
 		[string] $LogPath="",
+	[Parameter(Mandatory=$False)]
+		[int] $ReplicationWaitInterval=5,
+	[Parameter(Mandatory=$False)]
+		[int] $ReplicationWaitRepetitions=6,
 	[Parameter(Mandatory=$False)]
 		[switch] $ShowCommands
 )
@@ -168,8 +168,9 @@ function Invoke-CommandLine {
         }
         catch {
             Write-Log -Text 'Command Failed ', "$Command ", $($_.Exception.Message) -Color Red, Cyan, Magenta -LogPath $LogPath
-        }
-	}
+			return $false
+		}
+    }
 }
 # End function Invoke-CommandLine
 
@@ -203,6 +204,12 @@ function Write-Log {
     $DateTime = Get-Date -Format $TimeFormat
     $DefaultColor = $Color[0]
 
+    if ($LogPath -and ($LogFolder = Split-Path -Path $LogPath -Parent)) {
+        if (-not(Test-Path -Path $LogFolder)){
+            $null = New-Item -Path $LogFolder -ItemType Directory
+        }
+    }
+
     <#
      # Add empty line before
     if ($LinesBefore -ne 0) {
@@ -235,7 +242,7 @@ function Write-Log {
         }
     }
 
-    #Write-Host
+    Write-Host
 
     <#
     # Add empty line after
@@ -283,8 +290,6 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 	
     # Iterate through each row in the list of users from th
 	Foreach ($CsvUser in $AllCsvUsers) {
-    [bool] $EnableCsUserSuccess=$false
-
         if ($AllCsvUsers.Count) {
             $AllCsvUsersCount = $AllCsvUsers.Count
         }
@@ -335,24 +340,72 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 		#### Logic for enabling a user
         # If TargetCsEnabled is True and the user is not enabled in Lync/Skype...
 		elseif ( $($CsvUser.TargetCsEnabled) -eq $True -and -Not $CsUserObject ) {
+			[bool] $EnableCsUserSuccess=$false
             # Enable the user
                 if ( $($CsvUser.TargetSipAddress) -match $SipUriRegex ) {
-                    if (Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)") {
+		            try {
+                        $Command = "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
+                        Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)
+		                if ($ShowCommands) {
+                            Write-Log -Text 'Command Successful ', $Command -Color Green, Cyan -LogPath $LogPath
+                        }
+                        else {
+                            Write-Log -NoConsole -Text 'Command Successful ', $Command -LogPath $LogPath
+                        }
                         $EnableCsUserSuccess=$true
                     }
+                    catch {
+                        Write-Log -Text 'Command Failed ', "$Command ", $($_.Exception.Message) -Color Red, Cyan, Magenta -LogPath $LogPath
+		            }
+                    
+                    <#
+                    if (Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)") {
+					}
+                    else {
+                        $EnableCsUserSuccess=$false
+                    }
+                    #>
                 }
                 elseif ( $($CsvUser.TargetSipAddress) -match $NonSipUriRegex ) {
-                    if (Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)") {
+		            try {
+                        $Command = "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)"
+                        Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)
+		                if ($ShowCommands) {
+                            Write-Log -Text 'Command Successful ', $Command -Color Green, Cyan -LogPath $LogPath
+                        }
+                        else {
+                            Write-Log -NoConsole -Text 'Command Successful ', $Command -LogPath $LogPath
+                        }
                         $EnableCsUserSuccess=$true
                     }
+                    catch {
+                        Write-Log -Text 'Command Failed ', "$Command ", $($_.Exception.Message) -Color Red, Cyan, Magenta -LogPath $LogPath
+		            }
+
+                    <#
+                    if (Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)") {
+					}
+                    else {
+                        $EnableCsUserSuccess=$false
+                    }
+                    #>
                 }
             # Wait for the changes to replicate
-			if ( $EnableCsUserSuccess ) {
-                Start-Sleep -Seconds 10
-            }
-            # If TargetEnterpriseVoiceEnabled is True and TargetLineUri matches E164 formatting, EV enable the user and set LineUri
-			if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match $E164RegEx ) {
-                    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri $($CsvUser.TargetLineUri)"
+            if ( $EnableCsUserSuccess) {
+                $Iteration = 1
+                $TotalIterations = $ReplicationWaitRepetitions
+                do {
+                    Write-Log -NoLog -Text "Pass $Iteration of $ReplicationWaitRepetitions - Waiting $ReplicationWaitInterval seconds for new user to replicate" -Color Yello
+                    Start-Sleep -Seconds $ReplicationWaitInterval
+                    $CsUserObject = (Get-CsUser -Identity $($CsvUser.userPrincipalName) -ErrorAction SilentlyContinue)
+                    $t
+                }
+                until ($CsUserObject -or $TotalIterations -eq 0)
+
+                # If TargetEnterpriseVoiceEnabled is True and TargetLineUri matches E164 formatting, EV enable the user and set LineUri
+	    		if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match $E164RegEx ) {
+                        Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri $($CsvUser.TargetLineUri)"
+                }
             }
 		}
 
