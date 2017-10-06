@@ -4,7 +4,7 @@
 .PARAMETER
 .EXAMPLE
 .NOTES
-	Version: 1.1.2
+	Version: 1.1.3
 	Updated: 10/6/2017
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
@@ -25,8 +25,6 @@ param(
 		[string] $LogPath="",
 	[Parameter(Mandatory=$False)]
 		[int] $ReplicationWaitInterval=5,
-	[Parameter(Mandatory=$False)]
-		[int] $ReplicationWaitRepetitions=6,
 	[Parameter(Mandatory=$False)]
 		[switch] $ShowCommands
 )
@@ -75,8 +73,8 @@ function Test-CsvFormat {
     .PARAMETER
     .EXAMPLE
     .NOTES
-	    Version: 1.1
-	    Updated: 9/16/2017
+	    Version: 1.1.1
+	    Updated: 10/6/2017
 	    Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
     .LINK
 	    https://github.com/spmiddlebrooks
@@ -97,7 +95,7 @@ function Test-CsvFormat {
 
     # These columns are the valid operation Target columns, at least 1 must be present in the CSV, otherwise we have nothing to do
     $ValidTargetColumns = @('TargetCsEnabled','TargetSipAddress','TargetRegistrarPool','TargetLineUri','TargetEnterpriseVoiceEnabled')
-    $ValidTargetColumns += @(Get-Command -Module $UcPlatform | ForEach { if ($_.Name -match $GrantCsRegex) {'Target' + $matches[1]} })
+    $ValidTargetColumns += @(Get-Command -Module $UcPlatform | ForEach { if ($_.Name -match 'Cs?(DialPlan|\w+Policy)') {'Target' + $matches[1]} })
     
 
 	## Get a list of all the column names in the CSV
@@ -392,15 +390,12 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
                 }
             # Wait for the changes to replicate
             if ( $EnableCsUserSuccess) {
-                $Iteration = 1
-                $TotalIterations = $ReplicationWaitRepetitions
                 do {
-                    Write-Log -NoLog -Text "Pass $Iteration of $ReplicationWaitRepetitions - Waiting $ReplicationWaitInterval seconds for new user to replicate" -Color Yello
+                    Write-Log -NoLog -Text "Waiting for new user to replicate..." -Color Yello
                     Start-Sleep -Seconds $ReplicationWaitInterval
                     $CsUserObject = (Get-CsUser -Identity $($CsvUser.userPrincipalName) -ErrorAction SilentlyContinue)
-                    $t
                 }
-                until ($CsUserObject -or $TotalIterations -eq 0)
+                until ($CsUserObject)
 
                 # If TargetEnterpriseVoiceEnabled is True and TargetLineUri matches E164 formatting, EV enable the user and set LineUri
 	    		if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match $E164RegEx ) {
