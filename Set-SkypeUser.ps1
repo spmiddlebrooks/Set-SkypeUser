@@ -4,8 +4,8 @@
 .PARAMETER
 .EXAMPLE
 .NOTES
-	Version: 1.1.3
-	Updated: 10/6/2017
+	Version: 1.1.4
+	Updated: 10/7/2017
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
 	https://github.com/spmiddlebrooks
@@ -142,8 +142,8 @@ function Invoke-CommandLine {
     .PARAMETER
     .EXAMPLE
     .NOTES
-	    Version: 1.1
-	    Updated: 9/18/2017 1546
+	    Version: 1.2
+	    Updated: 10/7/2017
 	    Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
     .LINK
 	    https://github.com/spmiddlebrooks
@@ -153,20 +153,20 @@ function Invoke-CommandLine {
 		[string] $userPrincipalName,
 		[string] $Command
 	)
+
     # $PSCmdlet.ShouldProcess("Target", "Action")
 	if ( $PSCmdlet.ShouldProcess($userPrincipalName,$Command) ) {
-		try {
-            Invoke-Expression $Command
+		if ($OutputObject = Invoke-Expression $Command) {
 		    if ($ShowCommands) {
                 Write-Log -Text 'Command Successful ', $Command -Color Green, Cyan -LogPath $LogPath
             }
             else {
                 Write-Log -NoConsole -Text 'Command Successful ', $Command -LogPath $LogPath
             }
+            return $OutputObject
         }
-        catch {
+        else {
             Write-Log -Text 'Command Failed ', "$Command ", $($_.Exception.Message) -Color Red, Cyan, Magenta -LogPath $LogPath
-			return $false
 		}
     }
 }
@@ -341,52 +341,16 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 			[bool] $EnableCsUserSuccess=$false
             # Enable the user
                 if ( $($CsvUser.TargetSipAddress) -match $SipUriRegex ) {
-		            try {
-                        $Command = "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)"
-                        Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)
-		                if ($ShowCommands) {
-                            Write-Log -Text 'Command Successful ', $Command -Color Green, Cyan -LogPath $LogPath
-                        }
-                        else {
-                            Write-Log -NoConsole -Text 'Command Successful ', $Command -LogPath $LogPath
-                        }
+                    $CsUserObject = Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress) -PassThru"
+                    if ($CsUserObject) {
                         $EnableCsUserSuccess=$true
-                    }
-                    catch {
-                        Write-Log -Text 'Command Failed ', "$Command ", $($_.Exception.Message) -Color Red, Cyan, Magenta -LogPath $LogPath
-		            }
-                    
-                    <#
-                    if (Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress $($CsvUser.TargetSipAddress)") {
 					}
-                    else {
-                        $EnableCsUserSuccess=$false
-                    }
-                    #>
                 }
                 elseif ( $($CsvUser.TargetSipAddress) -match $NonSipUriRegex ) {
-		            try {
-                        $Command = "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)"
-                        Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)
-		                if ($ShowCommands) {
-                            Write-Log -Text 'Command Successful ', $Command -Color Green, Cyan -LogPath $LogPath
-                        }
-                        else {
-                            Write-Log -NoConsole -Text 'Command Successful ', $Command -LogPath $LogPath
-                        }
+                    $CsUserObject = Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress) -PassThru"
+                    if ($CsUserObject) {
                         $EnableCsUserSuccess=$true
-                    }
-                    catch {
-                        Write-Log -Text 'Command Failed ', "$Command ", $($_.Exception.Message) -Color Red, Cyan, Magenta -LogPath $LogPath
-		            }
-
-                    <#
-                    if (Invoke-CommandLine $CsvUser.userPrincipalName "Enable-CsUser -Identity $($CsvUser.userPrincipalName) -RegistrarPool $($CsvUser.TargetRegistrarPool) -SipAddress sip:$($CsvUser.TargetSipAddress)") {
 					}
-                    else {
-                        $EnableCsUserSuccess=$false
-                    }
-                    #>
                 }
             # Wait for the changes to replicate
             if ( $EnableCsUserSuccess) {
@@ -405,7 +369,7 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 		}
 
 		foreach ($Column in $ColumnsCsv) {
-			                        #$($CsvUser.TargetCsEnabled)
+            #$($CsvUser.TargetCsEnabled)
             if ( ($CsUserObject -or $EnableCsUserSuccess) -and $Column -match $GrantCsRegex ) {
 				$Command = $null
 				$GrantCsCommand = "Grant-Cs" + $Matches[1]
