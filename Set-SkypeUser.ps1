@@ -4,8 +4,8 @@
 .PARAMETER
 .EXAMPLE
 .NOTES
-	Version: 1.1.4
-	Updated: 10/7/2017
+	Version: 1.2
+	Updated: 10/20/2017
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
 	https://github.com/spmiddlebrooks
@@ -24,9 +24,9 @@ param(
 	[Parameter(Mandatory=$False)]
 		[string] $LogPath="",
 	[Parameter(Mandatory=$False)]
-		[int] $ReplicationWaitInterval=5,
-	[Parameter(Mandatory=$False)]
-		[switch] $ShowCommands
+		[int] $ReplicationWaitInterval=5
+	#[Parameter(Mandatory=$False)]
+	#	[switch] $ShowCommands
 )
 
 function Set-ModuleStatus { 
@@ -142,8 +142,8 @@ function Invoke-CommandLine {
     .PARAMETER
     .EXAMPLE
     .NOTES
-	    Version: 1.2
-	    Updated: 10/7/2017
+	    Version: 1.3
+	    Updated: 10/20/2017
 	    Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
     .LINK
 	    https://github.com/spmiddlebrooks
@@ -156,16 +156,17 @@ function Invoke-CommandLine {
 
     # $PSCmdlet.ShouldProcess("Target", "Action")
 	if ( $PSCmdlet.ShouldProcess($userPrincipalName,$Command) ) {
-		if ($OutputObject = Invoke-Expression $Command) {
-		    if ($ShowCommands) {
+		try {
+			$OutputObject = Invoke-Expression $Command
+		    #if ($ShowCommands) {
                 Write-Log -Text 'Command Successful ', $Command -Color Green, Cyan -LogPath $LogPath
-            }
-            else {
-                Write-Log -NoConsole -Text 'Command Successful ', $Command -LogPath $LogPath
-            }
+            #}
+            #else {
+            #    Write-Log -NoConsole -Text 'Command Successful ', $Command -LogPath $LogPath
+            #}
             return $OutputObject
         }
-        else {
+        catch {
             Write-Log -Text 'Command Failed ', "$Command ", $($_.Exception.Message) -Color Red, Cyan, Magenta -LogPath $LogPath
 		}
     }
@@ -263,12 +264,11 @@ function Write-Log {
 
 
 ############################################################################
-$RowNumber = 1
-$E164RegEx = '^tel:\+\d{7,15}(;ext=\d+)?$'
-$SipUriRegex = '^sip:.+@.+$'
+$RowNumber      = 1
+$E164RegEx      = '^tel:\+\d{7,15}(;ext=\d+)?$'
+$SipUriRegex    = '^sip:.+@.+$'
 $NonSipUriRegex = '^.+@.+$'
-$CsPolicyNameRegEx = '^[A-Za-z0-9\-_ ]+$'
-$GrantCsRegex = 'Target(DialPlan|\w+Policy)'
+$GrantCsRegex   = 'Target(DialPlan|\w+Policy)'
 
 # Attempt to load the SkypeforBusiness module
 if (Set-ModuleStatus SkypeForBusiness) {
@@ -369,21 +369,21 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 		}
 
 		foreach ($Column in $ColumnsCsv) {
-            #$($CsvUser.TargetCsEnabled)
-            if ( ($CsUserObject -or $EnableCsUserSuccess) -and $Column -match $GrantCsRegex ) {
-				$Command = $null
-				$GrantCsCommand = "Grant-Cs" + $Matches[1]
+            if ( $CsUserObject -and $Column -match $GrantCsRegex ) {
+
+                $GrantCsCommand = "Grant-Cs" + $Matches[1]
 
 				if ( $($CsvUser.$Column) -eq "null" ) {
 					$Command =  $GrantCsCommand + " -PolicyName `$null -Identity $($CsvUser.userPrincipalName)"
+
 				}
 				elseif ( $($CsvUser.$Column) -match $CsPolicyNameRegEx ) {
-					$Command = $GrantCsCommand + " -PolicyName ""$($CsvUser.$Column)"" -Identity $($CsvUser.userPrincipalName)"
+					$Command = $GrantCsCommand + " -PolicyName ""$($CsvUser.$Column)"" -Identity $($CsvUser.userPrincipalName) -ErrorAction Stop"
 				}
 
-				if ($Command) {
-					Invoke-CommandLine $CsvUser.userPrincipalName $Command
-				}
+                if ($Command) {
+				    Invoke-CommandLine $CsvUser.userPrincipalName $Command
+                }
 			}
 		}
 	}
