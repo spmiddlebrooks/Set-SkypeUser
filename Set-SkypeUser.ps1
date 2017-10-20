@@ -369,7 +369,7 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 		}
 
 		foreach ($Column in $ColumnsCsv) {
-            if ( $CsUserObject -and $Column -match $GrantCsRegex ) {
+            if ( $CsUserObject -and $Column -match $GrantCsRegex -and $($CsvUser.$Column) ) {
 
                 $GrantCsCommand = "Grant-Cs" + $Matches[1]
 
