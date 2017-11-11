@@ -4,8 +4,8 @@
 .PARAMETER
 .EXAMPLE
 .NOTES
-	Version: 1.2
-	Updated: 10/20/2017
+	Version: 1.2.1
+	Updated: 11/11/2017
 	Original Author: Scott Middlebrooks (Git Hub: spmiddlebrooks)
 .LINK
 	https://github.com/spmiddlebrooks
@@ -311,11 +311,11 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 			if ( $($CsvUser.TargetLineUri) -match $E164RegEx ) {
                 # If the user is already EV enabled, update user's Line Uri
                 if ( $CsUserObject.EnterpriseVoiceEnabled ) {
-				    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -LineUri $($CsvUser.TargetLineUri)"
+				    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -LineUri '$($CsvUser.TargetLineUri)'"
                 }
                 # Else if TargetEnterpriseVoiceEnabled is TRUE, then enable EV and set user's Line Uri
                 elseif ( $CsvCuser.TargetEnterpriseVoiceEnabled ) {
-                    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri $($CsvUser.TargetLineUri)"
+                    Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri '$($CsvUser.TargetLineUri)'"
                 }
 			}
 			# Else if TargetEnterpriseVoiceEnabled is set to $False, disable EV for user and set LineUri to $null
@@ -363,7 +363,7 @@ If ( $AllCsvUsers,$ColumnsCsv = Test-CsvFormat $FilePath ) {
 
                 # If TargetEnterpriseVoiceEnabled is True and TargetLineUri matches E164 formatting, EV enable the user and set LineUri
 	    		if ( $($CsvUser.TargetEnterpriseVoiceEnabled) -eq $True -and $($CsvUser.TargetLineUri) -match $E164RegEx ) {
-                        Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri $($CsvUser.TargetLineUri)"
+                        Invoke-CommandLine $CsvUser.userPrincipalName "Set-CsUser -Identity $($CsvUser.userPrincipalName) -EnterpriseVoiceEnabled `$True -LineUri '$($CsvUser.TargetLineUri)'"
                 }
             }
 		}
